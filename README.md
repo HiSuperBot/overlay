@@ -2,77 +2,69 @@
 
 A project hub for camera and face-overlay experiences. The native iOS app lives in `apps/ios`.
 
-## iOS app
+The camera preview offers **Original**, **Mesh**, and **Avatar** modes. Avatar mode replaces the tracked face with **Human A** or **Human B**, including animated eyes, lips, brows, lashes, teeth, and mouth interior. A feathered face mask keeps the camera's hair, neck, body, and background outside the replacement region.
 
-Open `apps/ios/Overlay.xcodeproj` in Xcode and select the `Overlay` scheme.
+Tap **Face** in the camera footer to open a bottom sheet with **Original**, **Mesh**, **Human A**, and **Human B** cards. The current choice has a checkmark. Selecting a card immediately applies it and closes the sheet; closing or dragging the sheet down without selecting keeps the current effect. The sheet starts at medium height and can expand. Camera capture and face calibration continue while it is open. Loading, fit status, **Re-fit**, and error feedback remain on the camera screen.
 
-- SwiftUI interface, ARKit face tracking, and Metal rendering.
-- iOS 18 or later, portrait orientation, and one tracked face.
-- A physical iPhone with a supported TrueDepth front camera is required for the live preview.
-- Bundle identifier: `com.mindware.Overlay`.
+- iOS 18 or later, portrait orientation, one face, and a supported TrueDepth front camera.
+- One ARKit capture session shared by Metal and RealityKit.
+- A supported 30fps capture format in Avatar mode; faster diagnostic capture where available.
+- An initial continuous neutral second fits the face. **Re-fit** repeats calibration; avatar changes reuse the measurements.
+- Asynchronous local model loading with the last selection winning. Human A is the initial default and the selected avatar ID is saved.
+- Original-camera fallback and an error message when an avatar cannot load.
+- All capture, tracking, loading, and rendering run on the iPhone. Frames and tracking data are not saved or transmitted.
 
-The preview displays a mirrored front-camera feed with a white face wireframe. The mesh follows head movement and facial expressions. A switch hides the mesh while keeping the camera running. Tracking loss hides the mesh until the face is found again.
-
-The app handles camera permission, unsupported devices, session interruptions, and recoverable session errors. Camera capture pauses when the app becomes inactive. No camera frames or face-tracking data are saved or transmitted.
-
-Photo capture, video recording, character models, and avatar animation are outside this first version.
+Hands, glasses, and bangs can currently be covered if they enter the face mask. Full head replacement, photos, and video recording are outside this version. Actual preview speed, temperature, expression fidelity, and alignment require device validation.
 
 ## Repository layout
 
 ```text
+assets/avatars/              # Editable Blender sources, conversion scripts, licenses
 apps/ios/
 ├── Overlay.xcodeproj/
 └── Overlay/
     ├── App/                 # Application entry point
-    ├── Features/Camera/     # Camera screen and SwiftUI/Metal view bridge
-    ├── Tracking/            # Permissions, ARSession, and tracking state
-    ├── Rendering/           # Camera compositor, face mesh renderer, and shaders
-    └── Resources/           # Bundled app assets
+    ├── Avatars/             # Catalog, expression mapping, calibration, frame driver
+    ├── Features/Camera/     # SwiftUI screen and shared preview host
+    ├── Tracking/            # Permissions, ARSession, frame delivery, camera state
+    ├── Rendering/           # Diagnostic renderer, avatar compositor, Metal shaders
+    └── Resources/Avatars/   # Two USDZ models, thumbnails, catalog
+scripts/check_sources.sh     # Lightweight checks; never starts Xcode or a simulator
+tests/                      # Standalone Swift unit tests
+docs/                       # Rendering architecture and device checks
 ```
 
-Add shared design documents under `docs/` and source character models or textures under `assets/` when needed.
+See [avatar provenance and reproduction](assets/avatars/README.md) and [rendering architecture](docs/avatar-preview.md).
 
 ## Run
 
-If Xcode reports that the Metal Toolchain is missing, install Apple's compiler component before building:
+Open `apps/ios/Overlay.xcodeproj` in Xcode and select the **Overlay** scheme (bundle ID `com.mindware.Overlay`). Select your development team under **Signing & Capabilities**, choose your connected TrueDepth iPhone, build and run, and allow camera access. A Personal Team can be used for development testing.
+
+If Xcode reports a missing Metal Toolchain, install Apple's compiler component:
 
 ```sh
 xcodebuild -downloadComponent MetalToolchain
 ```
 
-For a physical iPhone:
+The simulator displays the interface and a device requirement message. It cannot validate TrueDepth, facial expressions, or face replacement. Full builds, simulator sessions, and device runs are performed manually in this repository.
 
-1. Select your Apple development team under **Signing & Capabilities**.
-2. Select your connected TrueDepth iPhone as the run destination.
-3. Build and run, then allow camera access.
-
-The simulator displays the interface and a device requirement message. It cannot validate TrueDepth capture, face tracking, or mesh alignment.
-
-Run builds and device tests manually as needed. The repository's development workflow prioritizes source changes over automatically starting simulator sessions or repeatedly rebuilding.
-
-An optional simulator build command:
+## Lightweight validation
 
 ```sh
-xcodebuild -project apps/ios/Overlay.xcodeproj -scheme Overlay \
-  -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath /tmp/overlay-derived-data build
+./scripts/check_sources.sh
 ```
 
-## Device test checklist
+This type-checks Swift against the iOS 18 deployment target, compiles Metal shaders, checks the project and packaged assets, and runs standalone Swift tests for calibration, face fitting, expression mapping, and hole-free contour selection. Outputs stay in a temporary directory. It does not build or run the app. To also check actual RealityKit USDZ import on macOS 15 or later, use `./scripts/check_sources.sh --realitykit`. This optional standalone asset check verifies 52 imported expressions, separate eye pivots, and PBR materials without creating a camera session or window.
 
-- Allow camera access: the live preview appears and the status changes to **Face tracked**.
-- Blink, open your mouth, turn your head, and move closer or farther away: the white mesh follows the eyes, nose, lips, and chin.
-- Check the mirrored preview: the video and mesh stay aligned on both sides of the face.
-- Turn **Face mesh** off and on: the camera continues running.
-- Move out of view and return: the mesh disappears, then tracking resumes.
-- Background the app and return: the preview resumes without stale face geometry.
-- Deny camera access: the app explains the requirement and provides **Open Settings**.
-- Run in the simulator: the device requirement message appears without starting an AR session.
+## Device checklist
 
-## Rendering
+1. Tap **Face**: the sheet starts at medium height, expands, and closes with its close button or a downward drag. Keep the sheet open and confirm the camera remains live. Dismiss without selecting and confirm the effect and completed fit are retained.
+2. Select each of **Original**, **Mesh**, **Human A**, and **Human B**. Each selection closes the sheet and updates the footer name. Reopen it and verify only the current choice is checked. Switch directly from Mesh to each human face.
+3. In Avatar mode, look straight ahead and relax your face for one second. Blink, speak, and move your gaze. Try **Re-fit**. Rapidly reopen the sheet and switch avatars; verify the last selection wins.
+4. Check frontal and approximately ±30° head turns for exposed real eyes/mouth, gaps, or large boundary offsets. Check that Avatar and Mesh have the same mirrored direction and crop.
+5. Confirm hair, neck, body, and background remain camera pixels outside the feathered boundary.
+6. Leave the frame and return. Background and resume the app with the selector open, then make another selection. Check for black output or an old face.
+7. Use Avatar for five minutes and assess smoothness and temperature. A 30fps capture target is not a measured performance guarantee.
+8. Deny camera permission and verify **Open Settings**. Verify the simulator's unsupported-device message.
 
-Each render uses one `ARFrame` for both the camera image and face geometry. The camera image's inverse display transform and the camera projection use the same portrait viewport. Mirroring applies to the composed preview, so the image and mesh receive the same horizontal flip.
-
-The renderer reuses three vertex buffers and a static triangle index buffer. A depth-only face pass hides wireframe edges behind the visible facial surface. At most three GPU commands are in flight; the renderer skips a draw rather than waiting for an occupied buffer. Rendering targets up to 60 fps when a suitable TrueDepth capture format is supported; actual performance must be checked on the test iPhone.
-
-All repository documentation is written in English.
+All repository documentation and code comments are written in English.

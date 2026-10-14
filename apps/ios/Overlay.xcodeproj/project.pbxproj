@@ -13,6 +13,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		2EA32C9A307DF6CF00AE29C0 /* Overlay */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFolders = (
+				Resources/Avatars,
+			);
 			path = Overlay;
 			sourceTree = "<group>";
 		};

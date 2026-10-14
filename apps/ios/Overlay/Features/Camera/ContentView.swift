@@ -4,6 +4,8 @@ import UIKit
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var controller = FaceTrackingController()
+    @State private var isFacePickerPresented = false
+    @State private var facePickerDetent: PresentationDetent = .medium
 
     var body: some View {
         VStack(spacing: 0) {
@@ -12,7 +14,6 @@ struct ContentView: View {
                 Color.black
                 #if !targetEnvironment(simulator)
                 FaceCameraPreview(controller: controller)
-                    .scaleEffect(x: -1, y: 1)
                 #endif
                 previewMessage
             }
@@ -22,6 +23,13 @@ struct ContentView: View {
         }
         .background(.black)
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $isFacePickerPresented) {
+            FaceSelectionSheet(controller: controller)
+                .presentationDetents([.medium, .large], selection: $facePickerDetent)
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+                .preferredColorScheme(.dark)
+        }
         .task {
             await controller.start()
         }
@@ -113,17 +121,66 @@ struct ContentView: View {
     }
 
     private var footer: some View {
-        VStack(spacing: 18) {
-            Toggle(isOn: $controller.isMeshVisible) {
-                Label("Face mesh", systemImage: "faceid")
-                    .font(.headline)
+        VStack(spacing: 14) {
+            HStack {
+                Button {
+                    facePickerDetent = .medium
+                    isFacePickerPresented = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Label("Face", systemImage: "faceid")
+                        Image(systemName: "chevron.up")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.bordered)
+                .tint(.mint)
+                .accessibilityLabel("Choose face effect")
+                .accessibilityValue(selectedEffectName)
+                .accessibilityHint("Opens Original, Mesh, and avatar choices.")
+                Spacer()
+                Text(selectedEffectName)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
             }
-            .tint(.mint)
+            if controller.previewMode == .avatar {
+                if controller.avatarError == nil {
+                    HStack {
+                        if controller.avatarLoading {
+                            ProgressView().controlSize(.small)
+                            Text("Loading avatar…")
+                        } else {
+                            Text(controller.fitReady ? "Face fitted" : "Look straight ahead and relax for 1 second")
+                        }
+                        Spacer()
+                        Button("Re-fit") { controller.refit() }
+                            .disabled(controller.state != .tracking || controller.avatarLoading)
+                    }
+                    .font(.caption)
+                }
+            }
+            if let error = controller.avatarError {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                    if controller.previewMode == .avatar && controller.selectedAvatar != nil {
+                        Button("Retry avatar") { controller.retryAvatar() }.font(.caption)
+                    }
+                }
+            }
             Text("Live preview · Processed on your iPhone")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.caption2).foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 22)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+    }
+
+    private var selectedEffectName: String {
+        switch controller.previewMode {
+        case .original, .mesh: controller.previewMode.title
+        case .avatar: controller.selectedAvatar?.name ?? "Avatar"
+        }
     }
 }

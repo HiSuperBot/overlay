@@ -1,0 +1,20 @@
+[
+  {
+    "file": "system.zip",
+    "url": "https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip",
+    "sha256": "b542127a8e25547c7c29c19f2d1d2adb9a664c80396ecd694095dbc8028a0107",
+    "licenseSource": "https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html"
+  },
+  {
+    "file": "faceunits01.zip",
+    "url": "https://files2.makehumancommunity.org/functional/faceunits01.zip",
+    "sha256": "d113107bd7eb59f3af4df6fc0ec29bfcc593f496d0b336aec14f086a80ce7146",
+    "licenseSource": "https://github.com/makehumancommunity/extra-targets/blob/master/LICENSE"
+  },
+  {
+    "file": "mpfb-v2.0.18.tar.gz",
+    "url": "https://codeload.github.com/makehumancommunity/mpfb2/tar.gz/refs/tags/v2.0.18",
+    "sha256": "2909fdf3de140d7ba13b024f3316e8c9862b312d80b39469dfeaba25af30d1c8",
+    "licenseSource": "https://github.com/makehumancommunity/mpfb2/blob/v2.0.18/LICENSE.ASSETS.md"
+  }
+]

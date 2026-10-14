@@ -96,7 +96,7 @@ final class FaceMeshRenderer: NSObject, MTKViewDelegate {
     func draw(in view: MTKView) {
         guard controller.isSessionRunning,
               view.bounds.width > 0, view.bounds.height > 0,
-              let frame = controller.session.currentFrame,
+              let frame = controller.latestFrame,
               inFlight.wait(timeout: .now()) == .success else { return }
 
         var committed = false
@@ -114,7 +114,6 @@ final class FaceMeshRenderer: NSObject, MTKViewDelegate {
               let encoder = command.makeRenderCommandEncoder(descriptor: pass) else { return }
 
         let face = frame.anchors.compactMap { $0 as? ARFaceAnchor }.first { $0.isTracked }
-        controller.updateTracking(hasFace: face != nil)
 
         // The camera and face both come from this frame and use the same viewport.
         var imageTransform = Self.textureTransform(frame: frame, viewport: view.bounds.size)
@@ -128,7 +127,7 @@ final class FaceMeshRenderer: NSObject, MTKViewDelegate {
         encoder.setFragmentTexture(chromaTexture, index: 1)
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
 
-        if controller.isMeshVisible, let face {
+        if controller.previewMode == .mesh, let face {
             do {
                 try updateBuffers(geometry: face.geometry)
                 if let indexBuffer {
@@ -169,7 +168,7 @@ final class FaceMeshRenderer: NSObject, MTKViewDelegate {
         let semaphore = inFlight
         let trackingController = controller
         command.addCompletedHandler { [resources, semaphore, weak trackingController] completed in
-            withExtendedLifetime(resources) {
+            _ = withExtendedLifetime(resources) {
                 semaphore.signal()
             }
             if completed.status == .error {

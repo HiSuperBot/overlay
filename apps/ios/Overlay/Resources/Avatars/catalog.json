@@ -1,0 +1,466 @@
+[
+  {
+    "id": "human-a",
+    "name": "Human A",
+    "file": "human-a.usdz",
+    "thumbnail": "human-a.png",
+    "expressions": {
+      "browDownLeft": {
+        "source": "browDownLeft",
+        "gain": 1
+      },
+      "browDownRight": {
+        "source": "browDownRight",
+        "gain": 1
+      },
+      "browInnerUp": {
+        "source": "browInnerUp",
+        "gain": 1
+      },
+      "browOuterUpLeft": {
+        "source": "browOuterUpLeft",
+        "gain": 1
+      },
+      "browOuterUpRight": {
+        "source": "browOuterUpRight",
+        "gain": 1
+      },
+      "cheekPuff": {
+        "source": "cheekPuff",
+        "gain": 1
+      },
+      "cheekSquintLeft": {
+        "source": "cheekSquintLeft",
+        "gain": 1
+      },
+      "cheekSquintRight": {
+        "source": "cheekSquintRight",
+        "gain": 1
+      },
+      "eyeBlinkLeft": {
+        "source": "eyeBlinkLeft",
+        "gain": 1.08
+      },
+      "eyeBlinkRight": {
+        "source": "eyeBlinkRight",
+        "gain": 1.08
+      },
+      "eyeLookDownLeft": {
+        "source": "eyeLookDownLeft",
+        "gain": 1
+      },
+      "eyeLookDownRight": {
+        "source": "eyeLookDownRight",
+        "gain": 1
+      },
+      "eyeLookInLeft": {
+        "source": "eyeLookInLeft",
+        "gain": 1
+      },
+      "eyeLookInRight": {
+        "source": "eyeLookInRight",
+        "gain": 1
+      },
+      "eyeLookOutLeft": {
+        "source": "eyeLookOutLeft",
+        "gain": 1
+      },
+      "eyeLookOutRight": {
+        "source": "eyeLookOutRight",
+        "gain": 1
+      },
+      "eyeLookUpLeft": {
+        "source": "eyeLookUpLeft",
+        "gain": 1
+      },
+      "eyeLookUpRight": {
+        "source": "eyeLookUpRight",
+        "gain": 1
+      },
+      "eyeSquintLeft": {
+        "source": "eyeSquintLeft",
+        "gain": 1
+      },
+      "eyeSquintRight": {
+        "source": "eyeSquintRight",
+        "gain": 1
+      },
+      "eyeWideLeft": {
+        "source": "eyeWideLeft",
+        "gain": 1
+      },
+      "eyeWideRight": {
+        "source": "eyeWideRight",
+        "gain": 1
+      },
+      "jawForward": {
+        "source": "jawForward",
+        "gain": 1
+      },
+      "jawLeft": {
+        "source": "jawLeft",
+        "gain": 1
+      },
+      "jawOpen": {
+        "source": "jawOpen",
+        "gain": 1.04
+      },
+      "jawRight": {
+        "source": "jawRight",
+        "gain": 1
+      },
+      "mouthClose": {
+        "source": "mouthClose",
+        "gain": 1
+      },
+      "mouthDimpleLeft": {
+        "source": "mouthDimpleLeft",
+        "gain": 1
+      },
+      "mouthDimpleRight": {
+        "source": "mouthDimpleRight",
+        "gain": 1
+      },
+      "mouthFrownLeft": {
+        "source": "mouthFrownLeft",
+        "gain": 1
+      },
+      "mouthFrownRight": {
+        "source": "mouthFrownRight",
+        "gain": 1
+      },
+      "mouthFunnel": {
+        "source": "mouthFunnel",
+        "gain": 1
+      },
+      "mouthLeft": {
+        "source": "mouthLeft",
+        "gain": 1
+      },
+      "mouthLowerDownLeft": {
+        "source": "mouthLowerDownLeft",
+        "gain": 1
+      },
+      "mouthLowerDownRight": {
+        "source": "mouthLowerDownRight",
+        "gain": 1
+      },
+      "mouthPressLeft": {
+        "source": "mouthPressLeft",
+        "gain": 1
+      },
+      "mouthPressRight": {
+        "source": "mouthPressRight",
+        "gain": 1
+      },
+      "mouthPucker": {
+        "source": "mouthPucker",
+        "gain": 1
+      },
+      "mouthRight": {
+        "source": "mouthRight",
+        "gain": 1
+      },
+      "mouthRollLower": {
+        "source": "mouthRollLower",
+        "gain": 1
+      },
+      "mouthRollUpper": {
+        "source": "mouthRollUpper",
+        "gain": 1
+      },
+      "mouthShrugLower": {
+        "source": "mouthShrugLower",
+        "gain": 1
+      },
+      "mouthShrugUpper": {
+        "source": "mouthShrugUpper",
+        "gain": 1
+      },
+      "mouthSmileLeft": {
+        "source": "mouthSmileLeft",
+        "gain": 1
+      },
+      "mouthSmileRight": {
+        "source": "mouthSmileRight",
+        "gain": 1
+      },
+      "mouthStretchLeft": {
+        "source": "mouthStretchLeft",
+        "gain": 1
+      },
+      "mouthStretchRight": {
+        "source": "mouthStretchRight",
+        "gain": 1
+      },
+      "mouthUpperUpLeft": {
+        "source": "mouthUpperUpLeft",
+        "gain": 1
+      },
+      "mouthUpperUpRight": {
+        "source": "mouthUpperUpRight",
+        "gain": 1
+      },
+      "noseSneerLeft": {
+        "source": "noseSneerLeft",
+        "gain": 1
+      },
+      "noseSneerRight": {
+        "source": "noseSneerRight",
+        "gain": 1
+      },
+      "tongueOut": {
+        "source": "tongueOut",
+        "gain": 1
+      }
+    },
+    "fitting": {
+      "leftEye": [
+        0.0287410169839859,
+        0.0,
+        0.0
+      ],
+      "rightEye": [
+        -0.0287410169839859,
+        0.0,
+        0.0
+      ],
+      "faceWidth": 0.13224207609891891,
+      "faceHeight": 0.1939996600151062
+    },
+    "leftEyeEntity": "LeftEye",
+    "rightEyeEntity": "RightEye"
+  },
+  {
+    "id": "human-b",
+    "name": "Human B",
+    "file": "human-b.usdz",
+    "thumbnail": "human-b.png",
+    "expressions": {
+      "browDownLeft": {
+        "source": "browDownLeft",
+        "gain": 1
+      },
+      "browDownRight": {
+        "source": "browDownRight",
+        "gain": 1
+      },
+      "browInnerUp": {
+        "source": "browInnerUp",
+        "gain": 1
+      },
+      "browOuterUpLeft": {
+        "source": "browOuterUpLeft",
+        "gain": 1
+      },
+      "browOuterUpRight": {
+        "source": "browOuterUpRight",
+        "gain": 1
+      },
+      "cheekPuff": {
+        "source": "cheekPuff",
+        "gain": 1
+      },
+      "cheekSquintLeft": {
+        "source": "cheekSquintLeft",
+        "gain": 1
+      },
+      "cheekSquintRight": {
+        "source": "cheekSquintRight",
+        "gain": 1
+      },
+      "eyeBlinkLeft": {
+        "source": "eyeBlinkLeft",
+        "gain": 1.08
+      },
+      "eyeBlinkRight": {
+        "source": "eyeBlinkRight",
+        "gain": 1.08
+      },
+      "eyeLookDownLeft": {
+        "source": "eyeLookDownLeft",
+        "gain": 1
+      },
+      "eyeLookDownRight": {
+        "source": "eyeLookDownRight",
+        "gain": 1
+      },
+      "eyeLookInLeft": {
+        "source": "eyeLookInLeft",
+        "gain": 1
+      },
+      "eyeLookInRight": {
+        "source": "eyeLookInRight",
+        "gain": 1
+      },
+      "eyeLookOutLeft": {
+        "source": "eyeLookOutLeft",
+        "gain": 1
+      },
+      "eyeLookOutRight": {
+        "source": "eyeLookOutRight",
+        "gain": 1
+      },
+      "eyeLookUpLeft": {
+        "source": "eyeLookUpLeft",
+        "gain": 1
+      },
+      "eyeLookUpRight": {
+        "source": "eyeLookUpRight",
+        "gain": 1
+      },
+      "eyeSquintLeft": {
+        "source": "eyeSquintLeft",
+        "gain": 1
+      },
+      "eyeSquintRight": {
+        "source": "eyeSquintRight",
+        "gain": 1
+      },
+      "eyeWideLeft": {
+        "source": "eyeWideLeft",
+        "gain": 1
+      },
+      "eyeWideRight": {
+        "source": "eyeWideRight",
+        "gain": 1
+      },
+      "jawForward": {
+        "source": "jawForward",
+        "gain": 1
+      },
+      "jawLeft": {
+        "source": "jawLeft",
+        "gain": 1
+      },
+      "jawOpen": {
+        "source": "jawOpen",
+        "gain": 1.04
+      },
+      "jawRight": {
+        "source": "jawRight",
+        "gain": 1
+      },
+      "mouthClose": {
+        "source": "mouthClose",
+        "gain": 1
+      },
+      "mouthDimpleLeft": {
+        "source": "mouthDimpleLeft",
+        "gain": 1
+      },
+      "mouthDimpleRight": {
+        "source": "mouthDimpleRight",
+        "gain": 1
+      },
+      "mouthFrownLeft": {
+        "source": "mouthFrownLeft",
+        "gain": 1
+      },
+      "mouthFrownRight": {
+        "source": "mouthFrownRight",
+        "gain": 1
+      },
+      "mouthFunnel": {
+        "source": "mouthFunnel",
+        "gain": 1
+      },
+      "mouthLeft": {
+        "source": "mouthLeft",
+        "gain": 1
+      },
+      "mouthLowerDownLeft": {
+        "source": "mouthLowerDownLeft",
+        "gain": 1
+      },
+      "mouthLowerDownRight": {
+        "source": "mouthLowerDownRight",
+        "gain": 1
+      },
+      "mouthPressLeft": {
+        "source": "mouthPressLeft",
+        "gain": 1
+      },
+      "mouthPressRight": {
+        "source": "mouthPressRight",
+        "gain": 1
+      },
+      "mouthPucker": {
+        "source": "mouthPucker",
+        "gain": 1
+      },
+      "mouthRight": {
+        "source": "mouthRight",
+        "gain": 1
+      },
+      "mouthRollLower": {
+        "source": "mouthRollLower",
+        "gain": 1
+      },
+      "mouthRollUpper": {
+        "source": "mouthRollUpper",
+        "gain": 1
+      },
+      "mouthShrugLower": {
+        "source": "mouthShrugLower",
+        "gain": 1
+      },
+      "mouthShrugUpper": {
+        "source": "mouthShrugUpper",
+        "gain": 1
+      },
+      "mouthSmileLeft": {
+        "source": "mouthSmileLeft",
+        "gain": 1
+      },
+      "mouthSmileRight": {
+        "source": "mouthSmileRight",
+        "gain": 1
+      },
+      "mouthStretchLeft": {
+        "source": "mouthStretchLeft",
+        "gain": 1
+      },
+      "mouthStretchRight": {
+        "source": "mouthStretchRight",
+        "gain": 1
+      },
+      "mouthUpperUpLeft": {
+        "source": "mouthUpperUpLeft",
+        "gain": 1
+      },
+      "mouthUpperUpRight": {
+        "source": "mouthUpperUpRight",
+        "gain": 1
+      },
+      "noseSneerLeft": {
+        "source": "noseSneerLeft",
+        "gain": 1
+      },
+      "noseSneerRight": {
+        "source": "noseSneerRight",
+        "gain": 1
+      },
+      "tongueOut": {
+        "source": "tongueOut",
+        "gain": 1
+      }
+    },
+    "fitting": {
+      "leftEye": [
+        0.028305791318416595,
+        0.0,
+        0.0
+      ],
+      "rightEye": [
+        -0.028305791318416595,
+        0.0,
+        0.0
+      ],
+      "faceWidth": 0.12605413049459457,
+      "faceHeight": 0.19374592304229737
+    },
+    "leftEyeEntity": "LeftEye",
+    "rightEyeEntity": "RightEye"
+  }
+]

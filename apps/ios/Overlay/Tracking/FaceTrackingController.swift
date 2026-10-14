@@ -1,4 +1,4 @@
-import ARKit
+@preconcurrency import ARKit
 import AVFoundation
 import Observation
 
@@ -49,7 +49,55 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
     private(set) var isSessionRunning = false
     private(set) var targetFrameRate = 60
     private(set) var canRetry = false
-    var isMeshVisible = true
+    var previewMode: PreviewMode = .avatar {
+        didSet { if oldValue != previewMode { updateCameraFormat() } }
+    }
+    private(set) var avatars: [AvatarDescriptor] = []
+    private(set) var selectedAvatarID = "human-a"
+    private(set) var avatarLoading = false
+    private var avatarLoadError: String?
+    private var avatarRenderingError: String?
+    var avatarError: String? { avatarRenderingError ?? avatarLoadError }
+    private(set) var fitReady = false
+    private(set) var refitGeneration = 0
+    private(set) var avatarRetryGeneration = 0
+
+    @ObservationIgnored private(set) var latestFrame: ARFrame?
+    @ObservationIgnored var frameConsumer: ((ARFrame?) -> Void)?
+
+    var selectedAvatar: AvatarDescriptor? { avatars.first { $0.id == selectedAvatarID } }
+
+    func selectAvatar(_ id: String) {
+        guard avatars.contains(where: { $0.id == id }) else { return }
+        if avatarError != nil {
+            avatarRetryGeneration += 1
+            avatarRenderingError = nil
+        }
+        selectedAvatarID = id
+        UserDefaults.standard.set(id, forKey: "selectedAvatarID")
+        avatarLoadError = nil
+    }
+
+    func retryAvatar() {
+        guard selectedAvatar != nil else { return }
+        avatarRetryGeneration += 1
+        avatarLoadError = nil
+        avatarRenderingError = nil
+    }
+
+    func avatarRenderingFailed(_ message: String) {
+        avatarRenderingError = message
+        previewMode = .original
+    }
+
+    func refit() { refitGeneration += 1; fitReady = false }
+    func setFitReady(_ ready: Bool) { if fitReady != ready { fitReady = ready } }
+    func avatarLoadStarted() { avatarLoading = true; avatarLoadError = nil }
+    func avatarLoadFinished(id: String, error: String? = nil) {
+        guard id == selectedAvatarID else { return }
+        avatarLoading = false
+        avatarLoadError = error
+    }
 
     @ObservationIgnored let session = ARSession()
     @ObservationIgnored private var wantsToRun = false
@@ -59,6 +107,13 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
 
     override init() {
         super.init()
+        do {
+            avatars = try AvatarCatalog.load()
+            let saved = UserDefaults.standard.string(forKey: "selectedAvatarID") ?? "human-a"
+            selectedAvatarID = avatars.contains { $0.id == saved } ? saved : avatars[0].id
+        } catch {
+            avatarLoadError = "The avatar catalog could not be read. Original and Mesh are still available."
+        }
         session.delegate = self
         session.delegateQueue = .main
     }
@@ -83,19 +138,7 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
             return
         }
 
-        let formats = ARFaceTrackingConfiguration.supportedVideoFormats.filter {
-            $0.captureDeviceType == .builtInTrueDepthCamera
-                && $0.captureDevicePosition == .front
-        }
-        let preferredFormats = formats.filter { $0.framesPerSecond <= 60 }.sorted {
-            if $0.framesPerSecond != $1.framesPerSecond {
-                return $0.framesPerSecond > $1.framesPerSecond
-            }
-            return $0.imageResolution.width * $0.imageResolution.height
-                > $1.imageResolution.width * $1.imageResolution.height
-        }
-        guard let format = preferredFormats.first
-            ?? formats.min(by: { $0.framesPerSecond < $1.framesPerSecond }) else {
+        guard let format = preferredFormat() else {
             state = .unsupported("A supported TrueDepth camera format was not found.")
             return
         }
@@ -124,8 +167,9 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
         let configuration = ARFaceTrackingConfiguration()
         configuration.videoFormat = format
         configuration.maximumNumberOfTrackedFaces = 1
-        configuration.isLightEstimationEnabled = false
-        targetFrameRate = min(format.framesPerSecond, 60)
+        configuration.isLightEstimationEnabled = true
+        targetFrameRate = min(format.framesPerSecond, previewMode == .avatar ? 30 : 60)
+        clearFrame()
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
         isSessionRunning = true
         state = .searching
@@ -135,6 +179,7 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
     func pause() {
         wantsToRun = false
         session.pause()
+        clearFrame()
         isSessionRunning = false
         isInterrupted = false
         if !state.blocksPreview {
@@ -154,14 +199,51 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
         renderingFailure = message
         canRetry = false
         session.pause()
+        clearFrame()
         isSessionRunning = false
         state = .failed(message)
+    }
+
+    private func preferredFormat() -> ARConfiguration.VideoFormat? {
+        let ceiling = previewMode == .avatar ? 30 : 60
+        let formats = ARFaceTrackingConfiguration.supportedVideoFormats.filter {
+            $0.captureDeviceType == .builtInTrueDepthCamera && $0.captureDevicePosition == .front
+        }
+        return formats.filter { $0.framesPerSecond <= ceiling }.sorted {
+            if $0.framesPerSecond != $1.framesPerSecond { return $0.framesPerSecond > $1.framesPerSecond }
+            return $0.imageResolution.width * $0.imageResolution.height
+                > $1.imageResolution.width * $1.imageResolution.height
+        }.first ?? formats.min { $0.framesPerSecond < $1.framesPerSecond }
+    }
+
+    private func updateCameraFormat() {
+        guard isSessionRunning, let format = preferredFormat(),
+              let configuration = session.configuration as? ARFaceTrackingConfiguration else { return }
+        configuration.videoFormat = format
+        targetFrameRate = min(format.framesPerSecond, previewMode == .avatar ? 30 : 60)
+        session.run(configuration)
+    }
+
+    private func clearFrame() {
+        latestFrame = nil
+        frameConsumer?(nil)
+    }
+
+    nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        // ARSession delivers this callback on the explicitly configured main delegate queue.
+        MainActor.assumeIsolated {
+            guard isSessionRunning else { return }
+            latestFrame = frame
+            updateTracking(hasFace: frame.anchors.contains { ($0 as? ARFaceAnchor)?.isTracked == true })
+            frameConsumer?(frame)
+        }
     }
 
     nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
         let message = error.localizedDescription
         Task { @MainActor [weak self] in
             guard let self else { return }
+            self.clearFrame()
             self.isSessionRunning = false
             self.isInterrupted = false
             self.canRetry = self.renderingFailure == nil
@@ -173,6 +255,7 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.isInterrupted = true
+            self.clearFrame()
             self.isSessionRunning = false
             if self.wantsToRun {
                 self.state = .interrupted
