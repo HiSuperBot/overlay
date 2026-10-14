@@ -6,15 +6,20 @@ The camera preview offers **Original**, **Mesh**, and **Avatar** modes. Avatar m
 
 Tap **Face** in the camera footer to open a bottom sheet with **Original**, **Mesh**, **Human A**, and **Human B** cards. The current choice has a checkmark. Selecting a card immediately applies it and closes the sheet; closing or dragging the sheet down without selecting keeps the current effect. The sheet starts at medium height and can expand. Camera capture and face calibration continue while it is open. Loading, fit status, **Re-fit**, and error feedback remain on the camera screen.
 
+Tap the **red circle** in the footer to record the current camera effect with microphone audio. It becomes a red stop square and shows **REC** with elapsed time. Tap again to finish and automatically save to Photos. Allow microphone and add-only Photos access when prompted. Face selection and Re-fit are locked during preparation, recording, and saving. Avatar recording requires a loaded, fitted face. The saved video contains the composited preview with its mirrored direction and crop; interface controls are excluded.
+
 - iOS 18 or later, portrait orientation, one face, and a supported TrueDepth front camera.
 - One ARKit capture session shared by Metal and RealityKit.
-- A supported 30fps capture format in Avatar mode; faster diagnostic capture where available.
+- A supported 30fps capture format in Avatar mode and during recording; faster diagnostic capture when idle where available.
 - An initial continuous neutral second fits the face. **Re-fit** repeats calibration; avatar changes reuse the measurements.
 - Asynchronous local model loading with the last selection winning. Human A is the initial default and the selected avatar ID is saved.
 - Original-camera fallback and an error message when an avatar cannot load.
-- All capture, tracking, loading, and rendering run on the iPhone. Frames and tracking data are not saved or transmitted.
+- H.264 MP4 video with AAC audio, targeting 30fps. Output keeps the preview aspect within 1080 × 1920; it does not upscale smaller previews.
+- All capture, tracking, loading, rendering, and encoding run on the iPhone. Video and microphone audio are saved only when recording is requested. Face tracking data is not exported or transmitted.
+- Leaving the foreground or losing camera/microphone availability ends the clip. Tracking loss alone records the existing camera fallback and restores the effect when tracking returns.
+- If Photos saving fails, the completed clip is kept in application storage with **Retry save** and **Share**. Pending clips survive relaunch and are removed only after Photos confirms saving.
 
-Hands, glasses, and bangs can currently be covered if they enter the face mask. Full head replacement, photos, and video recording are outside this version. Actual preview speed, temperature, expression fidelity, and alignment require device validation.
+Hands, glasses, and bangs can currently be covered if they enter the face mask. Full head replacement, still photos, pause/resume recording, and an in-app video gallery are outside this version. Actual preview speed, temperature, expression fidelity, audio synchronization, and alignment require device validation.
 
 ## Repository layout
 
@@ -28,13 +33,14 @@ apps/ios/
     ├── Features/Camera/     # SwiftUI screen and shared preview host
     ├── Tracking/            # Permissions, ARSession, frame delivery, camera state
     ├── Rendering/           # Diagnostic renderer, avatar compositor, Metal shaders
+    ├── Recording/           # Recording state, bounded GPU frame sink, movie writer, Photos saving
     └── Resources/Avatars/   # Two USDZ models, thumbnails, catalog
 scripts/check_sources.sh     # Lightweight checks; never starts Xcode or a simulator
 tests/                      # Standalone Swift unit tests
 docs/                       # Rendering architecture and device checks
 ```
 
-See [avatar provenance and reproduction](assets/avatars/README.md) and [rendering architecture](docs/avatar-preview.md).
+See [avatar provenance and reproduction](assets/avatars/README.md), [rendering architecture](docs/avatar-preview.md), and [recording architecture](docs/recording.md).
 
 ## Run
 
@@ -56,6 +62,8 @@ The simulator displays the interface and a device requirement message. It cannot
 
 This type-checks Swift against the iOS 18 deployment target, compiles Metal shaders, checks the project and packaged assets, and runs standalone Swift tests for calibration, face fitting, expression mapping, and hole-free contour selection. Outputs stay in a temporary directory. It does not build or run the app. To also check actual RealityKit USDZ import on macOS 15 or later, use `./scripts/check_sources.sh --realitykit`. This optional standalone asset check verifies 52 imported expressions, separate eye pivots, and PBR materials without creating a camera session or window.
 
+Recording dimension/timeline tests and permission-description checks run by default. Use `./scripts/check_sources.sh --recording` to also generate and decode short synthetic H.264/AAC clips on macOS 15 or later. It checks gamma and linear GPU inputs, mirrored output, audio/video timing, immediate stop with in-flight GPU work, and empty recordings. This uses offscreen Metal and a synthetic tone; it never opens a camera, simulator, or app window. Both optional flags can be combined.
+
 ## Device checklist
 
 1. Tap **Face**: the sheet starts at medium height, expands, and closes with its close button or a downward drag. Keep the sheet open and confirm the camera remains live. Dismiss without selecting and confirm the effect and completed fit are retained.
@@ -66,5 +74,8 @@ This type-checks Swift against the iOS 18 deployment target, compiles Metal shad
 6. Leave the frame and return. Background and resume the app with the selector open, then make another selection. Check for black output or an old face.
 7. Use Avatar for five minutes and assess smoothness and temperature. A 30fps capture target is not a measured performance guarantee.
 8. Deny camera permission and verify **Open Settings**. Verify the simulator's unsupported-device message.
+9. Record each of Original, Mesh, Human A, and Human B. Check the stop square, elapsed time, disabled Face/Re-fit controls, and **Saved to Photos**. Play each clip in Photos: check audio, lip synchronization, crop, colors, and mirrored direction, with no interface controls in the video.
+10. Stop a short clip, start another, leave the frame, return, background/resume, and interrupt microphone capture. Completed clips should save, recording should not resume automatically, and the next recording should work. Deny microphone/Photos access and verify Settings guidance. If a Photos transaction fails, test Retry save, Share, and recovery after relaunch.
+11. Record for five minutes and assess preview smoothness, saved-video smoothness, temperature, and memory stability.
 
 All repository documentation and code comments are written in English.

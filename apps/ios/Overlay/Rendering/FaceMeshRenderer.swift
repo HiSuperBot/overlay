@@ -30,6 +30,7 @@ private struct FrameResources: @unchecked Sendable {
 @MainActor
 final class FaceMeshRenderer: NSObject, MTKViewDelegate {
     private let controller: FaceTrackingController
+    private let recordingSink: RecordingFrameSink
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let textureCache: CVMetalTextureCache
@@ -47,7 +48,7 @@ final class FaceMeshRenderer: NSObject, MTKViewDelegate {
     private var vertexCount = 0
     private var bufferSlot = 0
 
-    init(view: MTKView, controller: FaceTrackingController) throws {
+    init(view: MTKView, controller: FaceTrackingController, recordingSink: RecordingFrameSink) throws {
         guard let device = view.device,
               let queue = device.makeCommandQueue() else {
             throw RenderError.unavailable
@@ -67,6 +68,7 @@ final class FaceMeshRenderer: NSObject, MTKViewDelegate {
         }
 
         self.controller = controller
+        self.recordingSink = recordingSink
         self.device = device
         commandQueue = queue
         textureCache = cache
@@ -164,6 +166,7 @@ final class FaceMeshRenderer: NSObject, MTKViewDelegate {
         }
 
         encoder.endEncoding()
+        recordingSink.encode(texture: drawable.texture, command: command, timestamp: frame.timestamp, mirror: true)
         let resources = FrameResources(frame: frame, luma: luma, chroma: chroma)
         let semaphore = inFlight
         let trackingController = controller

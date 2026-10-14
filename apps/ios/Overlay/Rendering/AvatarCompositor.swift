@@ -48,9 +48,13 @@ nonisolated final class AvatarCompositor: @unchecked Sendable {
     private var mask: MTLTexture?
     private var blurred: MTLTexture?
     private let onFailure: @Sendable (String) -> Void
+    private let recordingSink: RecordingFrameSink
     private var reportedFailure = false
 
-    init(onFailure: @escaping @Sendable (String) -> Void) { self.onFailure = onFailure }
+    init(recordingSink: RecordingFrameSink, onFailure: @escaping @Sendable (String) -> Void) {
+        self.recordingSink = recordingSink
+        self.onFailure = onFailure
+    }
 
     func publish(_ frame: CompositeFrame?) {
         snapshotLock.lock()
@@ -102,6 +106,12 @@ nonisolated final class AvatarCompositor: @unchecked Sendable {
         snapshotLock.lock()
         let current = snapshot
         snapshotLock.unlock()
+        defer {
+            if let current, ProcessInfo.processInfo.systemUptime - current.publishedAt < 0.15 {
+                recordingSink.encode(texture: context.targetColorTexture, command: context.commandBuffer,
+                                     timestamp: current.frame.timestamp, mirror: false)
+            }
+        }
         guard let current, let compositePipeline, let blurPipeline, let maskPipeline, let cache else {
             copy(context)
             return

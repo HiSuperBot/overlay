@@ -5,8 +5,9 @@ import SwiftUI
 
 struct FaceCameraPreview: UIViewRepresentable {
     let controller: FaceTrackingController
+    let recording: RecordingController
 
-    func makeUIView(context: Context) -> CameraPreviewHost { CameraPreviewHost(controller: controller) }
+    func makeUIView(context: Context) -> CameraPreviewHost { CameraPreviewHost(controller: controller, recording: recording) }
     func updateUIView(_ view: CameraPreviewHost, context: Context) { view.configure() }
     static func dismantleUIView(_ view: CameraPreviewHost, coordinator: ()) { view.stop() }
 }
@@ -14,17 +15,19 @@ struct FaceCameraPreview: UIViewRepresentable {
 @MainActor
 final class CameraPreviewHost: UIView {
     private let controller: FaceTrackingController
+    private let recording: RecordingController
     private let realityView: ARView
     private let metalView: MTKView
     private var meshRenderer: FaceMeshRenderer?
     private var avatarDriver: AvatarFrameDriver?
     private let compositor: AvatarCompositor
 
-    init(controller: FaceTrackingController) {
+    init(controller: FaceTrackingController, recording: RecordingController) {
         self.controller = controller
+        self.recording = recording
         realityView = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
         metalView = MTKView(frame: .zero, device: MTLCreateSystemDefaultDevice())
-        compositor = AvatarCompositor { [weak controller] message in
+        compositor = AvatarCompositor(recordingSink: recording.frameSink) { [weak controller] message in
             Task { @MainActor in
                 controller?.avatarRenderingFailed(message)
             }
@@ -49,7 +52,7 @@ final class CameraPreviewHost: UIView {
         metalView.depthStencilPixelFormat = .depth32Float
         metalView.clearColor = MTLClearColorMake(0, 0, 0, 1)
         metalView.clearDepth = 1
-        metalView.framebufferOnly = true
+        metalView.framebufferOnly = false
         metalView.isPaused = true
         metalView.isOpaque = true
         metalView.backgroundColor = .black
@@ -59,7 +62,7 @@ final class CameraPreviewHost: UIView {
         isAccessibilityElement = true
         accessibilityLabel = "Live front camera preview"
         do {
-            let renderer = try FaceMeshRenderer(view: metalView, controller: controller)
+            let renderer = try FaceMeshRenderer(view: metalView, controller: controller, recordingSink: recording.frameSink)
             meshRenderer = renderer
             metalView.delegate = renderer
         } catch {
@@ -72,12 +75,20 @@ final class CameraPreviewHost: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        realityView.frame = bounds
-        metalView.bounds = CGRect(origin: .zero, size: bounds.size)
+        var size = bounds.size
+        if let aspect = recording.lockedAspectRatio, size.width > 0, size.height > 0 {
+            if size.width / size.height > aspect { size.width = size.height * aspect }
+            else { size.height = size.width / aspect }
+        }
+        realityView.frame = CGRect(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2, width: size.width, height: size.height)
+        metalView.bounds = CGRect(origin: .zero, size: size)
         metalView.center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let scale = metalView.contentScaleFactor
+        recording.updateViewport(CGSize(width: size.width * scale, height: size.height * scale), device: metalView.device)
     }
 
     func configure() {
+        setNeedsLayout()
         avatarDriver?.configure()
         let avatar = controller.isSessionRunning && controller.previewMode == .avatar && controller.avatarError == nil
         realityView.isHidden = !avatar

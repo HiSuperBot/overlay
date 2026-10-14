@@ -64,6 +64,9 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
 
     @ObservationIgnored private(set) var latestFrame: ARFrame?
     @ObservationIgnored var frameConsumer: ((ARFrame?) -> Void)?
+    @ObservationIgnored var audioConsumer: ((CMSampleBuffer) -> Void)?
+    @ObservationIgnored var recordingInterrupted: ((String) -> Void)?
+    @ObservationIgnored private var recordingCapture = false
 
     var selectedAvatar: AvatarDescriptor? { avatars.first { $0.id == selectedAvatarID } }
 
@@ -86,6 +89,7 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
     }
 
     func avatarRenderingFailed(_ message: String) {
+        recordingInterrupted?(message)
         avatarRenderingError = message
         previewMode = .original
     }
@@ -168,7 +172,8 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
         configuration.videoFormat = format
         configuration.maximumNumberOfTrackedFaces = 1
         configuration.isLightEstimationEnabled = true
-        targetFrameRate = min(format.framesPerSecond, previewMode == .avatar ? 30 : 60)
+        configuration.providesAudioData = recordingCapture
+        targetFrameRate = min(format.framesPerSecond, frameRateCeiling)
         clearFrame()
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
         isSessionRunning = true
@@ -177,6 +182,7 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
     }
 
     func pause() {
+        if recordingCapture { recordingInterrupted?("Recording stopped because the camera paused.") }
         wantsToRun = false
         session.pause()
         clearFrame()
@@ -196,6 +202,7 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
     }
 
     func rendererFailed(_ message: String) {
+        recordingInterrupted?(message)
         renderingFailure = message
         canRetry = false
         session.pause()
@@ -204,8 +211,16 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
         state = .failed(message)
     }
 
+    private var frameRateCeiling: Int { recordingCapture || previewMode == .avatar ? 30 : 60 }
+
+    func setRecordingCapture(_ enabled: Bool) {
+        guard recordingCapture != enabled else { return }
+        recordingCapture = enabled
+        updateCameraFormat()
+    }
+
     private func preferredFormat() -> ARConfiguration.VideoFormat? {
-        let ceiling = previewMode == .avatar ? 30 : 60
+        let ceiling = frameRateCeiling
         let formats = ARFaceTrackingConfiguration.supportedVideoFormats.filter {
             $0.captureDeviceType == .builtInTrueDepthCamera && $0.captureDevicePosition == .front
         }
@@ -220,7 +235,8 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
         guard isSessionRunning, let format = preferredFormat(),
               let configuration = session.configuration as? ARFaceTrackingConfiguration else { return }
         configuration.videoFormat = format
-        targetFrameRate = min(format.framesPerSecond, previewMode == .avatar ? 30 : 60)
+        configuration.providesAudioData = recordingCapture
+        targetFrameRate = min(format.framesPerSecond, frameRateCeiling)
         session.run(configuration)
     }
 
@@ -243,8 +259,9 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
         let message = error.localizedDescription
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.clearFrame()
             self.isSessionRunning = false
+            self.recordingInterrupted?(message)
+            self.clearFrame()
             self.isInterrupted = false
             self.canRetry = self.renderingFailure == nil
             self.state = .failed(message)
@@ -254,9 +271,10 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
     nonisolated func sessionWasInterrupted(_ session: ARSession) {
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.isInterrupted = true
-            self.clearFrame()
             self.isSessionRunning = false
+            self.isInterrupted = true
+            if self.recordingCapture { self.recordingInterrupted?("Recording stopped because the camera was interrupted.") }
+            self.clearFrame()
             if self.wantsToRun {
                 self.state = .interrupted
             }
@@ -270,6 +288,13 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
             if self.wantsToRun {
                 await self.start()
             }
+        }
+    }
+
+    nonisolated func session(_ session: ARSession, didOutputAudioSampleBuffer audioSampleBuffer: CMSampleBuffer) {
+        MainActor.assumeIsolated {
+            guard recordingCapture, isSessionRunning else { return }
+            audioConsumer?(audioSampleBuffer)
         }
     }
 }

@@ -21,9 +21,31 @@ xcrun swiftc -swift-version 5 \
   apps/ios/Overlay/Avatars/AvatarMath.swift \
   tests/AvatarMathTests.swift -o "$check_output/avatar-tests"
 "$check_output/avatar-tests"
-if [[ "${1:-}" == "--realitykit" ]]; then
+xcrun swiftc -parse-as-library -swift-version 5 \
+  apps/ios/Overlay/Recording/RecordingMath.swift \
+  tests/RecordingMathTests.swift -o "$check_output/recording-math-tests"
+"$check_output/recording-math-tests"
+python3 - <<'PY'
+from pathlib import Path
+project = Path('apps/ios/Overlay.xcodeproj/project.pbxproj').read_text()
+for key in ('NSCameraUsageDescription', 'NSMicrophoneUsageDescription', 'NSPhotoLibraryAddUsageDescription'):
+    assert project.count('INFOPLIST_KEY_' + key + ' = ') == 2, key + ' must be present in Debug and Release'
+print('PASS: camera, microphone, and add-only Photos descriptions in both configurations')
+PY
+if [[ " ${*} " == *" --realitykit "* ]]; then
   host_arch=$(uname -m)
   xcrun swiftc -parse-as-library -target "$host_arch-apple-macos15.0"     tests/RealityKitAssetTests.swift -o "$check_output/asset-tests"
   "$check_output/asset-tests" apps/ios/Overlay/Resources/Avatars/*.usdz
+fi
+if [[ " ${*} " == *" --recording "* ]]; then
+  xcrun --sdk macosx metal -c apps/ios/Overlay/Rendering/Recording.metal -o "$check_output/recording.air"
+  xcrun --sdk macosx metallib "$check_output/recording.air" -o "$check_output/recording.metallib"
+  host_arch=$(uname -m)
+  xcrun swiftc -parse-as-library -swift-version 5 -target "$host_arch-apple-macos15.0" \
+    apps/ios/Overlay/Recording/RecordingMath.swift \
+    apps/ios/Overlay/Recording/MovieRecorder.swift \
+    apps/ios/Overlay/Recording/RecordingRecovery.swift \
+    tests/MovieRecorderTests.swift -o "$check_output/movie-tests"
+  "$check_output/movie-tests" "$check_output/recording.metallib" "$check_output/clips"
 fi
 git diff --check
