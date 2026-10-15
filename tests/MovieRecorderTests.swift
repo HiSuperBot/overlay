@@ -27,7 +27,6 @@ struct MovieRecorderTests {
 
         for (index, format) in [MTLPixelFormat.bgra8Unorm, .bgra8Unorm_srgb, .rgba16Float].enumerated() {
             let errors = Failures()
-            let mirror = index != 0
             let recorder = try MovieRecorder(device: device, dimensions: dimensions,
                 url: folder.appendingPathComponent("color-\(index).mp4"), library: library,
                 onStarted: { _ in }, onFailure: { errors.append($0) })
@@ -37,16 +36,16 @@ struct MovieRecorderTests {
                 let time = epoch + Double(frame) / 30
                 recorder.appendAudio(try makeAudio(time: time + 0.001))
                 let command = queue.makeCommandBuffer()!
-                recorder.encode(texture: texture, command: command, timestamp: time, mirror: mirror)
-                recorder.encode(texture: texture, command: command, timestamp: time, mirror: mirror)
-                recorder.encode(texture: texture, command: command, timestamp: time - 1, mirror: mirror)
+                recorder.encode(texture: texture, command: command, timestamp: time)
+                recorder.encode(texture: texture, command: command, timestamp: time)
+                recorder.encode(texture: texture, command: command, timestamp: time - 1)
                 try await commitAndWait(command)
                 try await Task.sleep(for: .milliseconds(34))
             }
             let result = try await recorder.finish()
             try expect(result.hasAudio && errors.first == nil, errors.first ?? "AAC audio must be recorded.")
-            try await inspect(result.url, dimensions: dimensions, mirror: mirror, minimumFrames: 27, maximumDuration: 1.1)
-            print("PASS: H.264 + AAC MP4, \(format), mirror=\(mirror), normalized timeline and decoded colors")
+            try await inspect(result.url, dimensions: dimensions, minimumFrames: 27, maximumDuration: 1.1)
+            print("PASS: H.264 + AAC MP4, \(format), unmirrored pixels, normalized timeline and decoded colors")
         }
 
         // Stop while work is still on the GPU. A later frame must not enter the stopped clip.
@@ -57,13 +56,13 @@ struct MovieRecorderTests {
         let texture = try makeTexture(device: device, format: .bgra8Unorm)
         let command = queue.makeCommandBuffer()!
         quick.appendAudio(try makeAudio(time: 50.001))
-        for frame in 0..<3 { quick.encode(texture: texture, command: command, timestamp: 50 + Double(frame) / 30, mirror: false) }
+        for frame in 0..<3 { quick.encode(texture: texture, command: command, timestamp: 50 + Double(frame) / 30) }
         quick.stopAccepting()
-        quick.encode(texture: texture, command: command, timestamp: 500, mirror: false)
+        quick.encode(texture: texture, command: command, timestamp: 500)
         command.commit()
         let result = try await quick.finish()
         try expect(errors.first == nil, errors.first ?? "In-flight frames must finalize.")
-        try await inspect(result.url, dimensions: dimensions, mirror: false, minimumFrames: 1, maximumDuration: 0.15)
+        try await inspect(result.url, dimensions: dimensions, minimumFrames: 1, maximumDuration: 0.15)
         print("PASS: immediate stop drains in-flight GPU frames and ignores late submissions")
 
         let empty = try MovieRecorder(device: device, dimensions: dimensions,
@@ -161,7 +160,7 @@ struct MovieRecorderTests {
         }
     }
 
-    private static func inspect(_ url: URL, dimensions: RecordingDimensions, mirror: Bool, minimumFrames: Int, maximumDuration: Double) async throws {
+    private static func inspect(_ url: URL, dimensions: RecordingDimensions, minimumFrames: Int, maximumDuration: Double) async throws {
         let asset = AVURLAsset(url: url)
         let video = try await asset.loadTracks(withMediaType: .video)
         let audio = try await asset.loadTracks(withMediaType: .audio)
@@ -194,8 +193,8 @@ struct MovieRecorderTests {
                 let stride = CVPixelBufferGetBytesPerRow(buffer)
                 let left = 50 * stride + 40 * 4
                 let right = 50 * stride + 120 * 4
-                try expect(mirror ? bytes[left] > bytes[left + 2] : bytes[left + 2] > bytes[left], "The left color must match the preview reflection.")
-                try expect(mirror ? bytes[right + 2] > bytes[right] : bytes[right] > bytes[right + 2], "The right color must match the preview reflection.")
+                try expect(bytes[left + 2] > bytes[left], "The source's red region must stay on the left.")
+                try expect(bytes[right] > bytes[right + 2], "The source's blue region must stay on the right.")
                 try expect(abs(Int(bytes[150 * stride + 80 * 4]) - 128) < 12, "sRGB and linear sources must preserve mid-gray brightness.")
             }
             last = time

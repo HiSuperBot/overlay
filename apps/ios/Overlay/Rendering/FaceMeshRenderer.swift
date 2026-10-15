@@ -166,7 +166,7 @@ final class FaceMeshRenderer: NSObject, MTKViewDelegate {
         }
 
         encoder.endEncoding()
-        recordingSink.encode(texture: drawable.texture, command: command, timestamp: frame.timestamp, mirror: true)
+        recordingSink.encode(texture: drawable.texture, command: command, timestamp: frame.timestamp)
         let resources = FrameResources(frame: frame, luma: luma, chroma: chroma)
         let semaphore = inFlight
         let trackingController = controller

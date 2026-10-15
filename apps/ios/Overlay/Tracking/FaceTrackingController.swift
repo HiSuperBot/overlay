@@ -44,7 +44,7 @@ enum CameraState: Equatable {
 
 @MainActor
 @Observable
-final class FaceTrackingController: NSObject, ARSessionDelegate {
+final class FaceTrackingController: NSObject, @preconcurrency ARSessionDelegate {
     private(set) var state: CameraState = .starting
     private(set) var isSessionRunning = false
     private(set) var targetFrameRate = 60
@@ -64,6 +64,7 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
 
     @ObservationIgnored private(set) var latestFrame: ARFrame?
     @ObservationIgnored var frameConsumer: ((ARFrame?) -> Void)?
+    @ObservationIgnored var captureFrameConsumer: ((ARFrame) -> Void)?
     @ObservationIgnored var audioConsumer: ((CMSampleBuffer) -> Void)?
     @ObservationIgnored var recordingInterrupted: ((String) -> Void)?
     @ObservationIgnored private var recordingCapture = false
@@ -245,14 +246,13 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
         frameConsumer?(nil)
     }
 
-    nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
+    func session(_ session: ARSession, didUpdate frame: ARFrame) {
         // ARSession delivers this callback on the explicitly configured main delegate queue.
-        MainActor.assumeIsolated {
-            guard isSessionRunning else { return }
-            latestFrame = frame
-            updateTracking(hasFace: frame.anchors.contains { ($0 as? ARFaceAnchor)?.isTracked == true })
-            frameConsumer?(frame)
-        }
+        guard isSessionRunning else { return }
+        latestFrame = frame
+        updateTracking(hasFace: frame.anchors.contains { ($0 as? ARFaceAnchor)?.isTracked == true })
+        frameConsumer?(frame)
+        captureFrameConsumer?(frame)
     }
 
     nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
@@ -291,10 +291,8 @@ final class FaceTrackingController: NSObject, ARSessionDelegate {
         }
     }
 
-    nonisolated func session(_ session: ARSession, didOutputAudioSampleBuffer audioSampleBuffer: CMSampleBuffer) {
-        MainActor.assumeIsolated {
-            guard recordingCapture, isSessionRunning else { return }
-            audioConsumer?(audioSampleBuffer)
-        }
+    func session(_ session: ARSession, didOutputAudioSampleBuffer audioSampleBuffer: CMSampleBuffer) {
+        guard recordingCapture, isSessionRunning else { return }
+        audioConsumer?(audioSampleBuffer)
     }
 }

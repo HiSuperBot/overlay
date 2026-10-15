@@ -104,9 +104,23 @@ nonisolated struct ExpressionMapper {
     }
 }
 
-// Boundary loops include eye and mouth holes. The longest loop encloses the entire face.
+// Boundary loops identify holes to cap, not the screen-space silhouette of a rotated 3D face.
 nonisolated enum FaceOutline {
     static func outerLoop(indices: [UInt16], vertices: [SIMD3<Float>]) -> [Int] {
+        boundaryLoops(indices: indices, vertices: vertices)?.max {
+            perimeter($0, vertices: vertices) < perimeter($1, vertices: vertices)
+        } ?? []
+    }
+
+    static func perimeter(_ loop: [Int], vertices: [SIMD3<Float>]) -> Float {
+        loop.indices.reduce(Float(0)) {
+            $0 + simd_distance(vertices[loop[$1]], vertices[loop[($1 + 1) % loop.count]])
+        }
+    }
+
+    static func boundaryLoops(indices: [UInt16], vertices: [SIMD3<Float>]) -> [[Int]]? {
+        guard !indices.isEmpty, indices.count.isMultiple(of: 3),
+              vertices.allSatisfy({ $0.x.isFinite && $0.y.isFinite && $0.z.isFinite }) else { return nil }
         struct Edge: Hashable {
             let a: Int
             let b: Int
@@ -115,35 +129,87 @@ nonisolated enum FaceOutline {
         var counts: [Edge: Int] = [:]
         for i in stride(from: 0, to: indices.count - 2, by: 3) {
             let triangle = [Int(indices[i]), Int(indices[i + 1]), Int(indices[i + 2])]
-            guard triangle.allSatisfy({ vertices.indices.contains($0) }) else { return [] }
+            guard Set(triangle).count == 3, triangle.allSatisfy({ vertices.indices.contains($0) }) else { return nil }
             for j in 0..<3 { counts[Edge(triangle[j], triangle[(j + 1) % 3]), default: 0] += 1 }
         }
+        guard counts.values.allSatisfy({ $0 <= 2 }) else { return nil }
         var neighbours: [Int: [Int]] = [:]
         for (edge, count) in counts where count == 1 {
             neighbours[edge.a, default: []].append(edge.b)
             neighbours[edge.b, default: []].append(edge.a)
         }
         var visited: Set<Int> = []
-        var best: [Int] = []
-        var longest: Float = 0
+        var loops: [[Int]] = []
         for start in neighbours.keys.sorted() where !visited.contains(start) {
             var loop: [Int] = []
             var previous = -1
             var current = start
             while !visited.contains(current) {
-                guard let next = neighbours[current], next.count == 2 else { return [] }
+                guard let next = neighbours[current], next.count == 2 else { return nil }
                 visited.insert(current)
                 loop.append(current)
                 let candidate = next.first { $0 != previous }!
                 previous = current
                 current = candidate
             }
-            guard current == start, loop.count >= 3 else { continue }
-            let perimeter = loop.indices.reduce(Float(0)) {
-                $0 + simd_distance(vertices[loop[$1]], vertices[loop[($1 + 1) % loop.count]])
-            }
-            if perimeter > longest { longest = perimeter; best = loop }
+            guard current == start, loop.count >= 3 else { return nil }
+            loops.append(loop)
         }
-        return best
+        return loops
+    }
+}
+
+nonisolated struct FaceMaskTopology: Sendable {
+    let vertexCount: Int
+    private let indices: [UInt16]
+    private let holes: [[Int]]
+
+    init?(indices: [UInt16], vertices: [SIMD3<Float>]) {
+        guard let loops = FaceOutline.boundaryLoops(indices: indices, vertices: vertices) else { return nil }
+        let outer = loops.indices.max {
+            FaceOutline.perimeter(loops[$0], vertices: vertices) < FaceOutline.perimeter(loops[$1], vertices: vertices)
+        }
+        self.vertexCount = vertices.count
+        self.indices = indices
+        holes = loops.indices.filter { $0 != outer }.map { loops[$0] }
+    }
+
+    func triangles(projected: [SIMD2<Float>]) -> [SIMD2<Float>] {
+        guard projected.count == vertexCount,
+              projected.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { return [] }
+        var result: [SIMD2<Float>] = []
+        result.reserveCapacity(indices.count + holes.reduce(0) { $0 + $1.count * 3 })
+        // Interior vertices can become the visible silhouette at yaw/pitch, especially the nose.
+        for index in indices { result.append(projected[Int(index)]) }
+        for loop in holes {
+            let center = loop.reduce(SIMD2<Float>.zero) { $0 + projected[$1] } / Float(loop.count)
+            guard center.x.isFinite, center.y.isFinite else { return [] }
+            for i in loop.indices {
+                result.append(contentsOf: [center, projected[loop[i]], projected[loop[(i + 1) % loop.count]]])
+            }
+        }
+        return result
+    }
+}
+
+nonisolated enum FaceMaskProjection {
+    static func project(vertices: [SIMD3<Float>], cameraFromFace: simd_float4x4,
+                        intrinsics: simd_float3x3, imageSize: SIMD2<Float>,
+                        imageToScreen: simd_float3x3) -> [SIMD2<Float>] {
+        guard imageSize.x.isFinite, imageSize.y.isFinite, imageSize.x > 0, imageSize.y > 0 else { return [] }
+        var projected: [SIMD2<Float>] = []
+        projected.reserveCapacity(vertices.count)
+        for vertex in vertices {
+            let camera = cameraFromFace * SIMD4(vertex, 1)
+            guard camera.z < -0.01 else { return [] }
+            // ARKit camera space is +Y up and -Z forward; image pixels are +Y down.
+            let pixel = intrinsics * SIMD3(camera.x, -camera.y, -camera.z)
+            let image = SIMD3(pixel.x / pixel.z / imageSize.x, pixel.y / pixel.z / imageSize.y, 1)
+            let screen = imageToScreen * image
+            let point = SIMD2(screen.x / screen.z, screen.y / screen.z)
+            guard point.x.isFinite, point.y.isFinite else { return [] }
+            projected.append(point)
+        }
+        return projected
     }
 }

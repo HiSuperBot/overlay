@@ -7,14 +7,15 @@ import simd
 nonisolated struct CompositeFrame: @unchecked Sendable {
     let frame: ARFrame
     let imageTransform: simd_float3x3
-    let outline: [SIMD2<Float>]
+    let maskTriangles: [SIMD2<Float>]
     let publishedAt: TimeInterval
 
     @MainActor
-    static func camera(frame: ARFrame, view: ARView, outline: [SIMD2<Float>] = []) -> CompositeFrame? {
+    static func camera(frame: ARFrame, view: ARView, face: ARFaceAnchor? = nil,
+                       topology: FaceMaskTopology? = nil) -> CompositeFrame? {
         let size = frame.camera.imageResolution
         let intrinsics = frame.camera.intrinsics
-        // Project image-plane rays through RealityKit itself to share its crop and front-camera reflection.
+        // Share RealityKit's crop and local render coordinates without a display reflection.
         func project(_ pixel: SIMD2<Float>) -> SIMD2<Float>? {
             let ray = intrinsics.inverse * SIMD3(pixel.x, pixel.y, 1)
             let world = frame.camera.transform * SIMD4(ray.x, -ray.y, -1, 1)
@@ -29,8 +30,17 @@ nonisolated struct CompositeFrame: @unchecked Sendable {
             SIMD3(y.x - origin.x, y.y - origin.y, 0), SIMD3(origin.x, origin.y, 1)
         )
         guard abs(simd_determinant(imageToScreen)) > 0.0001 else { return nil }
+        var triangles: [SIMD2<Float>] = []
+        if let face, let topology {
+            // Reuse the camera-image mapping instead of calling ARView.project for every mesh vertex.
+            let points = FaceMaskProjection.project(
+                vertices: face.geometry.vertices, cameraFromFace: frame.camera.transform.inverse * face.transform,
+                intrinsics: intrinsics, imageSize: SIMD2(Float(size.width), Float(size.height)), imageToScreen: imageToScreen
+            )
+            triangles = topology.triangles(projected: points)
+        }
         return CompositeFrame(frame: frame, imageTransform: imageToScreen.inverse,
-                              outline: outline, publishedAt: ProcessInfo.processInfo.systemUptime)
+                              maskTriangles: triangles, publishedAt: ProcessInfo.processInfo.systemUptime)
     }
 }
 
@@ -109,7 +119,7 @@ nonisolated final class AvatarCompositor: @unchecked Sendable {
         defer {
             if let current, ProcessInfo.processInfo.systemUptime - current.publishedAt < 0.15 {
                 recordingSink.encode(texture: context.targetColorTexture, command: context.commandBuffer,
-                                     timestamp: current.frame.timestamp, mirror: false)
+                                     timestamp: current.frame.timestamp)
             }
         }
         guard let current, let compositePipeline, let blurPipeline, let maskPipeline, let cache else {
@@ -136,7 +146,7 @@ nonisolated final class AvatarCompositor: @unchecked Sendable {
         }
         guard let mask, let blurred else { copy(context); fail("The face mask could not be allocated."); return }
         let fresh = ProcessInfo.processInfo.systemUptime - current.publishedAt < 0.15
-        let points = fresh ? current.outline : []
+        let triangles = fresh ? current.maskTriangles : []
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = mask
         pass.colorAttachments[0].loadAction = .clear
@@ -145,16 +155,11 @@ nonisolated final class AvatarCompositor: @unchecked Sendable {
         guard let render = context.commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { copy(context); return }
         render.setRenderPipelineState(maskPipeline)
         render.setCullMode(.none)
-        var contourBuffer: MTLBuffer?
-        if points.count >= 3 {
-            let center = points.reduce(SIMD2<Float>.zero, +) / Float(points.count)
-            var triangles: [SIMD2<Float>] = []
-            for index in points.indices {
-                triangles += [center, points[index], points[(index + 1) % points.count]]
-            }
+        var maskBuffer: MTLBuffer?
+        if !triangles.isEmpty {
             triangles.withUnsafeBytes { data in
                 if let base = data.baseAddress, let buffer = context.device.makeBuffer(bytes: base, length: data.count) {
-                    contourBuffer = buffer
+                    maskBuffer = buffer
                     render.setVertexBuffer(buffer, offset: 0, index: 0)
                     render.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: triangles.count)
                 }
@@ -183,7 +188,7 @@ nonisolated final class AvatarCompositor: @unchecked Sendable {
         composite.endEncoding()
         // CVMetalTextureCache wrappers and the captured frame must outlive all encoded GPU reads.
         let resources = CompositeGPUResources(frame: current, luma: luma, chroma: chroma,
-                                             mask: mask, blurred: blurred, contour: contourBuffer, target: target)
+                                             mask: mask, blurred: blurred, vertices: maskBuffer, target: target)
         context.commandBuffer.addCompletedHandler { [resources, weak self] command in
             withExtendedLifetime(resources) {}
             if command.status == .error { self?.fail("The GPU could not composite the avatar. Select Original to continue.") }
@@ -258,7 +263,7 @@ nonisolated private struct CompositeGPUResources: @unchecked Sendable {
     let chroma: CVMetalTexture
     let mask: MTLTexture
     let blurred: MTLTexture
-    let contour: MTLBuffer?
+    let vertices: MTLBuffer?
     let target: MTLTexture
 }
 

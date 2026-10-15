@@ -20,8 +20,7 @@ final class AvatarFrameDriver {
     private var faceID: UUID?
     private var calibrator = NeutralFaceCalibrator()
     private var mapper = ExpressionMapper()
-    private var outline: [Int] = []
-    private var vertexCount = 0
+    private var maskTopology: FaceMaskTopology?
     private var morphEntities: [Entity] = []
     private var leftEye: Entity?
     private var rightEye: Entity?
@@ -143,7 +142,7 @@ final class AvatarFrameDriver {
             calibrator.reset()
             mapper.reset()
             lastTimestamp = 0
-            outline = []
+            maskTopology = nil
             controller.setFitReady(false)
             leftEyeNeutral = simd_quatf(face.leftEyeTransform)
             rightEyeNeutral = simd_quatf(face.rightEyeTransform)
@@ -198,18 +197,12 @@ final class AvatarFrameDriver {
             leftEye?.orientation = simd_quatf(face.leftEyeTransform) * leftEyeNeutral.inverse * leftEyeBase
             rightEye?.orientation = simd_quatf(face.rightEyeTransform) * rightEyeNeutral.inverse * rightEyeBase
         }
-        if outline.isEmpty || vertexCount != vertices.count {
-            vertexCount = vertices.count
-            outline = FaceOutline.outerLoop(
+        if maskTopology?.vertexCount != vertices.count {
+            maskTopology = FaceMaskTopology(
                 indices: face.geometry.triangleIndices.map { UInt16(bitPattern: $0) }, vertices: vertices
             )
         }
-        let points = outline.compactMap { index -> SIMD2<Float>? in
-            let position = face.transform * SIMD4(vertices[index], 1)
-            guard let projected = view.project(SIMD3(position.x, position.y, position.z)) else { return nil }
-            return SIMD2(Float(projected.x / view.bounds.width), Float(projected.y / view.bounds.height))
-        }
-        compositor.publish(CompositeFrame.camera(frame: frame, view: view, outline: points))
+        compositor.publish(CompositeFrame.camera(frame: frame, view: view, face: face, topology: maskTopology))
     }
 
     private func walk(_ entity: Entity, visit: (Entity) -> Void) {

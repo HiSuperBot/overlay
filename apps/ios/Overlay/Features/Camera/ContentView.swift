@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var isFacePickerPresented = false
     @State private var facePickerDetent: PresentationDetent = .medium
     @State private var sharedVideo: SharedVideo?
+    @State private var isAILibraryPresented = false
 
     init() {
         let tracking = FaceTrackingController()
@@ -44,6 +45,9 @@ struct ContentView: View {
             VideoShareSheet(url: video.url)
                 .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $isAILibraryPresented) {
+            AICaptureLibraryView(store: recording.aiStore)
+        }
         .task {
             await recording.prepareRecovery()
             guard !Task.isCancelled else { return }
@@ -58,7 +62,7 @@ struct ContentView: View {
             }
         }
         .onChange(of: recording.state.locksEffects) { _, locked in
-            if locked { isFacePickerPresented = false }
+            if locked { isFacePickerPresented = false; isAILibraryPresented = false }
         }
         .onDisappear {
             recording.stop(reason: "Recording stopped because the camera screen closed.")
@@ -87,6 +91,11 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .combine)
+            Button { isAILibraryPresented = true } label: {
+                Image(systemName: "square.stack.3d.up").font(.title3).frame(width: 44, height: 44)
+            }
+            .tint(.mint).disabled(recording.state.locksEffects || !recording.recoveryReady)
+            .accessibilityLabel("AI Captures")
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 20)
@@ -143,6 +152,11 @@ struct ContentView: View {
 
     private var footer: some View {
         VStack(spacing: 14) {
+            Picker("Camera mode", selection: Binding(get: { recording.cameraMode }, set: { recording.selectCameraMode($0) })) {
+                ForEach(CameraMode.allCases) { mode in Text(mode.title).tag(mode) }
+            }
+            .pickerStyle(.segmented)
+            .disabled(recording.state.locksEffects)
             HStack(spacing: 12) {
                 Button {
                     facePickerDetent = .medium
@@ -197,7 +211,7 @@ struct ContentView: View {
                     }
                 }
             }
-            Text("Video + audio · Saved to Photos")
+            Text(recording.cameraMode.caption)
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
@@ -224,7 +238,9 @@ struct ContentView: View {
         .buttonStyle(.plain)
         .disabled(!recording.state.canToggle || (recording.state == .idle && !recording.canStart))
         .accessibilityLabel(recording.state == .recording ? "Stop recording" : "Start recording")
-        .accessibilityHint("Records the camera and face effect with microphone audio, then saves to Photos.")
+        .accessibilityHint(recording.cameraMode == .ai
+            ? "Records original camera video, microphone audio, and depth inside the app."
+            : "Records the camera and face effect with microphone audio, then saves to Photos.")
         .frame(width: 76, height: 80)
     }
 
@@ -235,7 +251,7 @@ struct ContentView: View {
                 HStack(spacing: 8) {
                     if recording.state == .recording {
                         Circle().fill(.red).frame(width: 8, height: 8)
-                        Text("REC \(recording.durationLabel)").monospacedDigit()
+                        Text("\(recording.cameraMode == .ai ? "AI REC" : "REC") \(recording.durationLabel)").monospacedDigit()
                     } else {
                         ProgressView().tint(.white)
                         Text(recording.state == .preparing ? "Preparing recording…" : "Saving video…")
@@ -262,9 +278,9 @@ struct ContentView: View {
                                 UIApplication.shared.open(url)
                             }
                         }
-                        if !recording.pendingVideos.isEmpty {
+                        if !recording.pendingVideos.isEmpty, recording.cameraMode.requiresPhotoPermission {
                             Button("Retry save") { Task { await recording.retrySave() } }
-                            if let url = recording.shareURL {
+                            if let url = recording.shareURL, recording.cameraMode.requiresPhotoPermission {
                                 Button("Share") { sharedVideo = SharedVideo(url: url) }
                             }
                         }

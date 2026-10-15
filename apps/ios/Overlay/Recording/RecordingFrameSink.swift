@@ -13,11 +13,11 @@ nonisolated final class RecordingFrameSink: @unchecked Sendable {
         lock.unlock()
     }
 
-    func encode(texture: MTLTexture, command: MTLCommandBuffer, timestamp: TimeInterval, mirror: Bool) {
+    func encode(texture: MTLTexture, command: MTLCommandBuffer, timestamp: TimeInterval) {
         lock.lock()
         let current = recorder
         lock.unlock()
-        current?.encode(texture: texture, command: command, timestamp: timestamp, mirror: mirror)
+        current?.encode(texture: texture, command: command, timestamp: timestamp)
     }
 
     func appendAudio(_ sample: CMSampleBuffer) {

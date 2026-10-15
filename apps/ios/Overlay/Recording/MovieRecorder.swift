@@ -115,7 +115,7 @@ nonisolated final class MovieRecorder: @unchecked Sendable {
         self.pool = pool
     }
 
-    func encode(texture source: MTLTexture, command: MTLCommandBuffer, timestamp: TimeInterval, mirror: Bool) {
+    func encode(texture source: MTLTexture, command: MTLCommandBuffer, timestamp: TimeInterval) {
         admission.lock()
         defer { admission.unlock() }
         guard accepting, timestamp.isFinite,
@@ -144,8 +144,8 @@ nonisolated final class MovieRecorder: @unchecked Sendable {
         encoder.setTexture(source, index: 0)
         encoder.setTexture(target, index: 1)
         let linear: [MTLPixelFormat] = [.rgba16Float, .rgba32Float, .bgra8Unorm_srgb, .rgba8Unorm_srgb]
-        var options = SIMD2<UInt32>(mirror ? 1 : 0, linear.contains(source.pixelFormat) ? 1 : 0)
-        encoder.setBytes(&options, length: MemoryLayout<SIMD2<UInt32>>.stride, index: 0)
+        var convertToSRGB: UInt32 = linear.contains(source.pixelFormat) ? 1 : 0
+        encoder.setBytes(&convertToSRGB, length: MemoryLayout<UInt32>.stride, index: 0)
         let w = pipeline.threadExecutionWidth
         encoder.dispatchThreads(MTLSize(width: dimensions.width, height: dimensions.height, depth: 1),
                                 threadsPerThreadgroup: MTLSize(width: w, height: min(8, pipeline.maxTotalThreadsPerThreadgroup / w), depth: 1))

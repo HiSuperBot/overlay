@@ -28,7 +28,7 @@ final class CameraPreviewHost: UIView {
         realityView = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
         metalView = MTKView(frame: .zero, device: MTLCreateSystemDefaultDevice())
         compositor = AvatarCompositor(recordingSink: recording.frameSink) { [weak controller] message in
-            Task { @MainActor in
+            Task { @MainActor [weak controller] in
                 controller?.avatarRenderingFailed(message)
             }
         }
@@ -56,8 +56,6 @@ final class CameraPreviewHost: UIView {
         metalView.isPaused = true
         metalView.isOpaque = true
         metalView.backgroundColor = .black
-        // The diagnostic renderer uses unmirrored ARKit matrices, so reflect its complete result once.
-        metalView.transform = CGAffineTransform(scaleX: -1, y: 1)
         addSubview(metalView)
         isAccessibilityElement = true
         accessibilityLabel = "Live front camera preview"
@@ -80,7 +78,8 @@ final class CameraPreviewHost: UIView {
             if size.width / size.height > aspect { size.width = size.height * aspect }
             else { size.height = size.width / aspect }
         }
-        realityView.frame = CGRect(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2, width: size.width, height: size.height)
+        realityView.bounds = CGRect(origin: .zero, size: size)
+        realityView.center = CGPoint(x: bounds.midX, y: bounds.midY)
         metalView.bounds = CGRect(origin: .zero, size: size)
         metalView.center = CGPoint(x: bounds.midX, y: bounds.midY)
         let scale = metalView.contentScaleFactor
